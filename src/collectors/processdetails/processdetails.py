@@ -48,7 +48,6 @@ class ProcessDetailsCollector(diamond.collector.Collector):
 
   def collect(self):
     for ps in psutil.process_iter():
-      print self.config['compiled_matchers']
       for _compiled_matcher in self.config['compiled_matchers']:
         _match = _compiled_matcher.search(' '.join(ps.cmdline))
         if _match is not None:
