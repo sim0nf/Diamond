@@ -48,11 +48,14 @@ class ProcessDetailsCollector(diamond.collector.Collector):
 
   def collect(self):
     for ps in psutil.process_iter():
-      for _compiled_matcher in self.config['compiled_matchers']:
-        _match = _compiled_matcher.search(' '.join(ps.cmdline))
-        if _match is not None:
-          _details = ps.as_dict()
-          _prefix = '.'.join(map(str, _match.groups()))
-          self.publish('{0}.uptime'.format(_prefix), int(time()-_details['create_time']))
-          for m in self.config['metrics']: self.publisher(_details, _prefix, m)
+      try:
+        for _compiled_matcher in self.config['compiled_matchers']:
+          _match = _compiled_matcher.search(' '.join(ps.cmdline))
+          if _match is not None:
+            _details = ps.as_dict()
+            _prefix = '.'.join(map(str, _match.groups()))
+            self.publish('{0}.uptime'.format(_prefix), int(time()-_details['create_time']))
+            for m in self.config['metrics']: self.publisher(_details, _prefix, m)
+      except Exception as e:
+        print type(e), e.strerror
 
