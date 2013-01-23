@@ -1,61 +1,148 @@
-import diamond.collector, psutil, re
+# coding=utf-8
+
+"""
+A Diamond collector that collects memory usage of each process defined in it's
+config file by matching them with their executable filepath or the process name.
+
+Example config file ProcessDetailsCollector.conf
+
+```
+enabled=True
+unit=kB
+[process]
+[[postgres]]
+exe=^\/usr\/lib\/postgresql\/+d.+d\/bin\/postgres$
+name=^postgres,^pg
+```
+
+exe and name are both lists of comma-separated regexps.
+"""
+
+import re
+
+import diamond.collector
+import diamond.convertor
 from time import time
+
+try:
+    import psutil
+    psutil
+except ImportError:
+    psutil = None
+
+
+def process_filter(proc, cfg):
+    """
+    Decides whether a process matches with a given process descriptor
+
+    :param proc: a psutil.Process instance
+    :param cfg: the dictionary from processes that describes with the
+        process group we're testing for
+    :return: True if it matches
+    :rtype: bool
+    """
+    for exe in cfg['exe']:
+        try:
+            if exe.search(proc.exe):
+                return True
+        except psutil.AccessDenied:
+            break
+    for name in cfg['name']:
+        if name.search(proc.name):
+            return True
+    for cmdline in cfg['cmdline']:
+        if cmdline.search(' '.join(proc.cmdline)):
+            return True
+    return False
+
 
 class ProcessDetailsCollector(diamond.collector.Collector):
 
-  def __init__(self, *args, **kwargs):
-    super(ProcessDetailsCollector, self).__init__(*args, **kwargs)
-    _matchers = self.config['matchers']
-    if isinstance(_matchers, str):
-      self.config['compiled_matchers'] = [re.compile(_matchers)]
-    elif isinstance(_matchers, list):
-      self.config['compiled_matchers'] = map(re.compile, _matchers)
-    else:
-      raise 'It should be either str or list.'
+    def get_default_config_help(self):
+        config_help = super(ProcessDetailsCollector,
+                            self).get_default_config_help()
+        config_help.update({
+            'unit': 'The unit in which memory data is collected.',
+            'process': ("A subcategory of settings inside of which each "
+                        "collected process has it's configuration")
+        })
+        return config_help
 
-  def get_default_config_help(self):
-    config_help = super(ProcessDetailsCollector, self).get_default_config_help()
-    config_help.update({
-    })
-    return config_help
+    def get_default_config(self):
+        """
+        Default settings are:
+            path: 'memory.process'
+            unit: 'B'
+        """
+        config = super(ProcessDetailsCollector, self).get_default_config()
+        config.update({
+            'path': 'memory.process',
+            'unit': 'B',
+            'process': '',
+        })
+        return config
 
-  def get_default_config(self):
-    config = super(ProcessDetailsCollector, self).get_default_config()
-    config.update({
-      'path' : 'apps',
-      'metrics' : [
-        'cpu_percent',
-        'memory_percent',
-        'memory_info.rss',
-        'memory_info.vms',
-        'cpu_times.user',
-        'cpu_times.system',
-      ],
-      'matchers': [],
-    })
-    return config
+    def setup_config(self):
+        """
+        prepare self.processes, which is a descriptor dictionary in
+        processgroup --> {
+            exe: [regex],
+            name: [regex],
+            cmdline: [regex],
+            procs: [psutil.Process]
+        }
+        """
+        self.processes = {}
+        for process, cfg in self.config['process'].items():
+            # first we build a dictionary with the process aliases and the
+            #  matching regexps
+            proc = {'procs': []}
+            for key in ('exe', 'name', 'cmdline'):
+                proc[key] = cfg.get(key, [])
+                if not isinstance(proc[key], list):
+                    proc[key] = [proc[key]]
+                proc[key] = [re.compile(e) for e in proc[key]]
+            self.processes[process] = proc
 
-  def publisher(self, _process_metrics, _instance_var, _metric):
-    m = _metric.split('.')
-    name = "{0}.{1}".format(_instance_var, _metric)
-    if len(m) == 2:
-      value = getattr(_process_metrics[m[0]], m[1])
-    elif len(m) == 1:
-      value = _process_metrics[_metric]
-    else:
-      raise 'Bad metric `'+_metric+'`.'
-    self.publish(name, value, precision=1)
+    def filter_processes(self):
+        """
+        Populates self.processes[processname]['procs'] with the corresponding
+        list of psutil.Process instances
+        """
 
-  def collect(self):
-    for ps in psutil.process_iter():
-      try:
-        for _compiled_matcher in self.config['compiled_matchers']:
-          _match = _compiled_matcher.search(' '.join(ps.cmdline))
-          if _match is not None:
-            _details = ps.as_dict()
-            _prefix = '.'.join(map(str, _match.groups()))
-            self.publish('{0}.uptime'.format(_prefix), int(time()-_details['create_time']))
-            for m in self.config['metrics']: self.publisher(_details, _prefix, m)
-      except Exception as e:
-        print type(e), e.strerror
+        for proc in psutil.process_iter():
+            # filter and divide the system processes amongst the different
+            #  process groups defined in the config file
+            for procname, cfg in self.processes.items():
+                if process_filter(proc, cfg):
+                    cfg['procs'].append(proc)
+                    break
 
+    def collect(self):
+        """
+        Collects the RSS memory usage of each process defined under the
+        `process` subsection of the config file
+        """
+        self.setup_config()
+        self.filter_processes()
+        unit = self.config['unit']
+        for process, cfg in self.processes.items():
+            # finally publish the results for each process group
+            metric_name = "%s.rss" % process
+            metric_value = diamond.convertor.binary.convert(
+                sum(p.get_memory_info().rss for p in cfg['procs']),
+                oldUnit='byte', newUnit=unit)
+            # Publish Metric
+            self.publish(metric_name, metric_value)
+
+            metric_name = "%s.vms" % process
+            metric_value = diamond.convertor.binary.convert(
+                sum(p.get_memory_info().vms for p in cfg['procs']),
+                oldUnit='byte', newUnit=unit)
+            # Publish Metric
+            self.publish(metric_name, metric_value)
+
+            metric_name = "%s.uptime" % process
+            metric_value = sum(int(time() - p.create_time) for p in cfg['procs'])
+            # Publish Metric
+            self.publish(metric_name, metric_value)
