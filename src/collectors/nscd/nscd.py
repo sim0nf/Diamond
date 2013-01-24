@@ -29,6 +29,7 @@ class NscdCollector(diamond.collector.Collector):
                              stdout=subprocess.PIPE).communicate()[0][:-1]
 
       keys = {
+        'current number of cached values':      'entries',
         'cache hits on positive entries':       'positive_hits',
         'cache hits on negative entries':       'negative_hits',
         'cache misses on positive entries':     'positive_misses',
