@@ -67,7 +67,7 @@ class MonitCollector(diamond.collector.Collector):
         for service in dom.getElementsByTagName('service'):
             if int(service.getAttribute('type')) == 3:
                 name = service.getElementsByTagName('name')[0].firstChild.data
-                if service.getElementsByTagName('monitor')[0].firstChild.data == '1':
+                if service.getElementsByTagName('status')[0].firstChild.data == '0' and service.getElementsByTagName('monitor')[0].firstChild.data == '1':
                   cpu = service.getElementsByTagName(
                       'cpu')[0].getElementsByTagName('percent')[0].firstChild.data
                   mem = int(service.getElementsByTagName(
