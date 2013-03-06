@@ -75,6 +75,7 @@ class TestDiskUsageCollector(CollectorTestCase):
         patch_time.stop()
 
         metrics = self.getPickledResults('test_should_work_with_real_data.pkl')
+
         self.setDocExample(collector=self.collector.__class__.__name__,
                            metrics=metrics,
                            defaultpath=self.collector.config['path'])
@@ -111,6 +112,7 @@ class TestDiskUsageCollector(CollectorTestCase):
 
         metrics = self.getPickledResults(
             'test_verify_supporting_vda_and_xvdb.pkl')
+
         self.assertPublishedMany(publish_mock, metrics)
 
     @patch('os.access', Mock(return_value=True))
@@ -143,6 +145,7 @@ class TestDiskUsageCollector(CollectorTestCase):
         patch_time.stop()
 
         metrics = self.getPickledResults('test_verify_supporting_md_dm.pkl')
+
         self.assertPublishedMany(publish_mock, metrics)
 
     @patch('os.access', Mock(return_value=True))
@@ -175,6 +178,39 @@ class TestDiskUsageCollector(CollectorTestCase):
         patch_time.stop()
 
         metrics = self.getPickledResults('test_verify_supporting_disk.pkl')
+        self.assertPublishedMany(publish_mock, metrics)
+
+    @patch('os.access', Mock(return_value=True))
+    @patch.object(Collector, 'publish')
+    def test_service_Time(self, publish_mock):
+        patch_open = patch('__builtin__.open',
+                           Mock(
+                            return_value=self.getFixture(
+                                'proc_diskstats_1_service_time')))
+        patch_time = patch('time.time', Mock(return_value=10))
+
+        patch_open.start()
+        patch_time.start()
+        self.collector.collect()
+        patch_open.stop()
+        patch_time.stop()
+
+        self.assertPublishedMany(publish_mock, {})
+
+        patch_open = patch('__builtin__.open',
+                           Mock(
+                            return_value=self.getFixture(
+                                'proc_diskstats_2_service_time')))
+        patch_time = patch('time.time', Mock(return_value=70))
+
+        patch_open.start()
+        patch_time.start()
+        self.collector.collect()
+        patch_open.stop()
+        patch_time.stop()
+
+        metrics = self.getPickledResults('test_service_Time.pkl')
+
         self.assertPublishedMany(publish_mock, metrics)
 
 

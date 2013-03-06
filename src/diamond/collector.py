@@ -107,6 +107,19 @@ def get_hostname(config, method=None):
 get_hostname.cached_results = {}
 
 
+def str_to_bool(value):
+    """
+    Converts string ('true', 'false') to bool
+    """
+    if isinstance(value, basestring):
+        if value.strip().lower() == 'true':
+            return True
+        else:
+            return False
+
+    return value
+
+
 class Collector(object):
     """
     The Collector class is a base class for all metric collectors.
@@ -153,11 +166,10 @@ class Collector(object):
         if isinstance(self.config['byte_unit'], basestring):
             self.config['byte_unit'] = self.config['byte_unit'].split()
 
-        if isinstance(self.config['enabled'], basestring):
-            if self.config['enabled'].strip().lower() == 'true':
-                self.config['enabled'] = True
-            else:
-                self.config['enabled'] = False
+        self.config['enabled'] = str_to_bool(self.config['enabled'])
+
+        self.config['measure_collector_time'] = str_to_bool(
+            self.config['measure_collector_time'])
 
         self.collect_running = False
 
@@ -288,7 +300,8 @@ class Collector(object):
         """
         raise NotImplementedError()
 
-    def publish(self, name, value, precision=0, metric_type='COUNTER'):
+    def publish(self, name, value, raw_value=None, precision=0,
+                metric_type='COUNTER'):
         """
         Publish a metric with the given name
         """
@@ -296,7 +309,8 @@ class Collector(object):
         path = self.get_metric_path(name)
 
         # Create Metric
-        metric = Metric(path, value, None, precision, host=self.get_hostname(),
+        metric = Metric(path, value, raw_value=raw_value, timestamp=None,
+                        precision=precision, host=self.get_hostname(),
                         metric_type=metric_type)
 
         # Publish Metric
@@ -316,11 +330,12 @@ class Collector(object):
 
     def publish_counter(self, name, value, precision=0, max_value=0,
                       time_delta=True, interval=None, allow_negative=False):
+        raw_value = value
         value = self.derivative(name, value, max_value=max_value,
                                 time_delta=time_delta, interval=interval,
                                 allow_negative=allow_negative)
-        return self.publish(name, value, precision=precision,
-                            metric_type='COUNTER')
+        return self.publish(name, value, raw_value=raw_value,
+                            precision=precision, metric_type='COUNTER')
 
     def derivative(self, name, new, max_value=0,
                    time_delta=True, interval=None,
