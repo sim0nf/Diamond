@@ -2,8 +2,6 @@
 # coding=utf-8
 ################################################################################
 
-from __future__ import with_statement
-
 from test import CollectorTestCase
 from test import get_collector_config
 from test import unittest
@@ -25,13 +23,19 @@ class TestMemcachedCollector(CollectorTestCase):
 
         self.collector = MemcachedCollector(config, None)
 
+    def test_import(self):
+        self.assertTrue(MemcachedCollector)
+
     @patch.object(Collector, 'publish')
     def test_should_work_with_real_data(self, publish_mock):
-        with patch.object(MemcachedCollector,
-                          'get_raw_stats',
-                          Mock(return_value=self.getFixture(
-                              'stats').getvalue())):
-            self.collector.collect()
+        patch_raw_stats = patch.object(MemcachedCollector,
+                                       'get_raw_stats',
+                                       Mock(return_value=self.getFixture(
+                                        'stats').getvalue()))
+
+        patch_raw_stats.start()
+        self.collector.collect()
+        patch_raw_stats.stop()
 
         metrics = {
             'localhost.reclaimed': 0.000000,
@@ -77,6 +81,7 @@ class TestMemcachedCollector(CollectorTestCase):
             'localhost.delete_hits': 0.000000,
             'localhost.decr_misses': 0.000000,
             'localhost.get_hits': 0.000000,
+            'localhost.repcached_qi_free': 0.000000,
         }
 
         self.setDocExample(collector=self.collector.__class__.__name__,

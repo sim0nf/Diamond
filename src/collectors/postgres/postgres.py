@@ -27,6 +27,7 @@ class PostgresqlCollector(diamond.collector.Collector):
             'user': 'Username',
             'password': 'Password',
             'port': 'Port number',
+            'underscore': 'Convert _ to .'
         })
         return config_help
 
@@ -41,6 +42,7 @@ class PostgresqlCollector(diamond.collector.Collector):
             'user': 'postgres',
             'password': 'postgres',
             'port': 5432,
+            'underscore': False,
             'method': 'Threaded'})
         return config
 
@@ -91,6 +93,9 @@ class PostgresqlCollector(diamond.collector.Collector):
             ret[database] = info
 
         for database in ret:
+            if self.config['underscore']:
+                database = database.replace("_", ".")
+
             for (metric, value) in ret[database].items():
                 self.publish("database.%s.%s" % (database, metric), value)
 

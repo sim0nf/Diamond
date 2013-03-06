@@ -2,8 +2,6 @@
 # coding=utf-8
 ################################################################################
 
-from __future__ import with_statement
-
 from test import CollectorTestCase
 from test import get_collector_config
 from test import unittest
@@ -43,23 +41,38 @@ class TestHttpdCollector(CollectorTestCase):
         httplib.HTTPConnection.getresponse = Mock(
             return_value=self.HTTPResponse)
 
+    def test_import(self):
+        self.assertTrue(HttpdCollector)
+
     @patch.object(Collector, 'publish')
     def test_should_work_with_synthetic_data(self, publish_mock):
         self.setUp()
 
-        with patch.object(TestHTTPResponse,
-                          'read',
-                          Mock(return_value=self.getFixture(
-                              'server-status-fake-1').getvalue())):
-            self.collector.collect()
+        patch_read = patch.object(TestHTTPResponse,
+                                  'read',
+                                  Mock(return_value=self.getFixture(
+                                    'server-status-fake-1').getvalue()))
+
+        patch_headers = patch.object(TestHTTPResponse,
+                                     'getheaders',
+                                     Mock(return_value={}))
+
+        patch_headers.start()
+        patch_read.start()
+        self.collector.collect()
+        patch_read.stop()
 
         self.assertPublishedMany(publish_mock, {})
 
-        with patch.object(TestHTTPResponse,
-                          'read',
-                          Mock(return_value=self.getFixture(
-                              'server-status-fake-2').getvalue())):
-            self.collector.collect()
+        patch_read = patch.object(TestHTTPResponse,
+                                  'read',
+                                  Mock(return_value=self.getFixture(
+                                    'server-status-fake-2').getvalue()))
+
+        patch_read.start()
+        self.collector.collect()
+        patch_read.stop()
+        patch_headers.stop()
 
         self.assertPublishedMany(publish_mock, {
             'TotalAccesses': 100,
@@ -74,19 +87,31 @@ class TestHttpdCollector(CollectorTestCase):
     def test_should_work_with_real_data(self, publish_mock):
         self.setUp()
 
-        with patch.object(TestHTTPResponse,
-                          'read',
-                          Mock(return_value=self.getFixture(
-                              'server-status-live-1').getvalue())):
-            self.collector.collect()
+        patch_read = patch.object(TestHTTPResponse,
+                                  'read',
+                                  Mock(return_value=self.getFixture(
+                                    'server-status-live-1').getvalue()))
+
+        patch_headers = patch.object(TestHTTPResponse,
+                                     'getheaders',
+                                     Mock(return_value={}))
+
+        patch_headers.start()
+        patch_read.start()
+        self.collector.collect()
+        patch_read.stop()
 
         self.assertPublishedMany(publish_mock, {})
 
-        with patch.object(TestHTTPResponse,
-                          'read',
-                          Mock(return_value=self.getFixture(
-                              'server-status-live-2').getvalue())):
-            self.collector.collect()
+        patch_read = patch.object(TestHTTPResponse,
+                                  'read',
+                                  Mock(return_value=self.getFixture(
+                                    'server-status-live-2').getvalue()))
+
+        patch_read.start()
+        self.collector.collect()
+        patch_read.stop()
+        patch_headers.stop()
 
         metrics = {
             'TotalAccesses': 8314,
@@ -107,19 +132,31 @@ class TestHttpdCollector(CollectorTestCase):
             ],
         })
 
-        with patch.object(TestHTTPResponse,
-                          'read',
-                          Mock(return_value=self.getFixture(
-                              'server-status-live-1').getvalue())):
-            self.collector.collect()
+        patch_read = patch.object(TestHTTPResponse,
+                                  'read',
+                                  Mock(return_value=self.getFixture(
+                                    'server-status-live-1').getvalue()))
+
+        patch_headers = patch.object(TestHTTPResponse,
+                                     'getheaders',
+                                     Mock(return_value={}))
+
+        patch_headers.start()
+        patch_read.start()
+        self.collector.collect()
+        patch_read.stop()
 
         self.assertPublishedMany(publish_mock, {})
 
-        with patch.object(TestHTTPResponse,
-                          'read',
-                          Mock(return_value=self.getFixture(
-                              'server-status-live-2').getvalue())):
-            self.collector.collect()
+        patch_read = patch.object(TestHTTPResponse,
+                                  'read',
+                                  Mock(return_value=self.getFixture(
+                                    'server-status-live-2').getvalue()))
+
+        patch_read.start()
+        self.collector.collect()
+        patch_read.stop()
+        patch_headers.stop()
 
         metrics = {
             'nickname1.TotalAccesses': 8314,

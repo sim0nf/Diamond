@@ -56,33 +56,46 @@ class HttpdCollector(diamond.collector.Collector):
         for nickname in self.urls.keys():
             url = self.urls[nickname]
 
-            # Parse Url
-            parts = urlparse.urlparse(url)
-
-            # Parse host and port
-            endpoint = parts[1].split(':')
-            if len(endpoint) > 1:
-                service_host = endpoint[0]
-                service_port = int(endpoint[1])
-            else:
-                service_host = endpoint[0]
-                service_port = 80
-
             metrics = ['ReqPerSec', 'BytesPerSec', 'BytesPerReq',
                        'BusyWorkers', 'IdleWorkers', 'Total Accesses']
 
-            # Setup Connection
-            connection = httplib.HTTPConnection(service_host, service_port)
-
             try:
-                connection.request("GET", "%s?%s" % (parts[2], parts[4]))
-                response = connection.getresponse()
-                data = response.read()
-                connection.close()
+                while True:
+
+                    # Parse Url
+                    parts = urlparse.urlparse(url)
+
+                    # Parse host and port
+                    endpoint = parts[1].split(':')
+                    if len(endpoint) > 1:
+                        service_host = endpoint[0]
+                        service_port = int(endpoint[1])
+                    else:
+                        service_host = endpoint[0]
+                        service_port = 80
+
+                    # Setup Connection
+                    connection = httplib.HTTPConnection(service_host,
+                                                        service_port)
+
+                    url = "%s?%s" % (parts[2], parts[4])
+
+                    connection.request("GET", url)
+                    response = connection.getresponse()
+                    data = response.read()
+                    headers = dict(response.getheaders())
+                    if ('location' not in headers
+                        or headers['location'] == url):
+                        connection.close()
+                        break
+                    url = headers['location']
+                    connection.close()
             except Exception, e:
-                self.log.error("Error retrieving HTTPD stats. %s", e)
+                self.log.error(
+                    "Error retrieving HTTPD stats for host %s:%s, url '%s': %s",
+                    service_host, str(service_port), url, e)
                 continue
-            
+
             exp = re.compile('^([A-Za-z ]+):\s+(.+)$')
             for line in data.split('\n'):
                 if line:
